@@ -3,6 +3,7 @@ const { Server } = require('ws');
 const http = require('http');
 const express = require('express');
 const net = require('net');
+const querystring = require('querystring');
 
 function getLogger(clientAddr) {
     return (msg) => {
@@ -10,13 +11,22 @@ function getLogger(clientAddr) {
     }
 }
 
-const onConnection = (ws) => {
+const onConnection = (ws, req) => {
     const clientAddr = ws._socket.remoteAddress;
     const log = getLogger(clientAddr);
-    log('WebSocket connection');
+    log(`WebSocket connection ${req.url}`);
     log('Version ' + ws.protocolVersion + ', subprotocol: ' + ws.protocol);
 
-    const target = net.createConnection(VNC.PORT, VNC.HOST, () => {
+    let params = {};
+    if (req.url.indexOf('?') >= 0) {
+        const query = req.url.substring(req.url.indexOf('?') + 1);
+        params = querystring.parse(query);
+    }
+
+    const host = params.host || VNC.HOST;
+    const port = params.port || VNC.PORT;
+
+    const target = net.createConnection(port, host, () => {
         log('connected to target');
     });
     target.on('data', function (data) {
@@ -67,8 +77,7 @@ async function bootstrap() {
     const wss = new Server({ server });
 
     wss.on('connection', (ws, req) => {
-        console.log(`[WEBSOCKET] connection(): ${req.url}`);
-        onConnection(ws);
+        onConnection(ws, req);
     });
     wss.on('error', error => {
         console.error(error);
